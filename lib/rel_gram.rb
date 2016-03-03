@@ -16,12 +16,12 @@ module RelGram
             parent: model.parent.name
           }
 
-          reflections = model.reflections.each_with_object({}) do |reflection, reflections_data|
-            reflections_data[reflection.last.options[:class_name]||reflection.first.to_s.camelize] = {
-                foreign_key: get_foreign_key(reflection, model),
-                rel_type: reflection.last.macro,
-                alias: reflection.last.options[:class_name].present? ? reflection.first : nil,
-                options: reflection.last.options
+          reflections = model.reflections.each_with_object({}) do |(reflection_name, reflection_object), reflections_data|
+            reflections_data[reflection_object.options[:class_name] || reflection_name.to_s.camelize] = {
+              foreign_key: get_foreign_key(reflection_name, reflection_object, model),
+              rel_type: reflection_object.macro,
+              alias: reflection_object.options[:class_name].present? ? reflection_name : nil,
+              options: reflection_object.options
             }
           end
           models_data[:rels][model.name] = reflections
@@ -43,9 +43,9 @@ module RelGram
     end
 
     private
-    def get_foreign_key(r, model)
-      r.first.respond_to?(:foreign_key) ?
-          r.first.foreign_key : r.last.options[:foreign_key] || "#{model.name.underscore}_id"
+    def get_foreign_key(r_name, r_object, model)
+      r_name.respond_to?(:foreign_key) ?
+        r_name.foreign_key : r_object.options[:foreign_key] || "#{model.name.underscore}_id"
     end
   end
 end
