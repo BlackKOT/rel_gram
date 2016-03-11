@@ -21,17 +21,17 @@ module RelGram
             through_model = reflection_object.options[:through]
             if through_model.present?
               reflections_data[through_model.to_s.singularize.camelize] = {
-                  foreign_key: "#{model.name.underscore}_id",
+                  key: "#{model.name.underscore}_id",
                   rel_type: :through
               }
               models_data[:rels][dest_model_name] ||= {}
               models_data[:rels][dest_model_name][through_model.to_s.singularize.camelize] = {
-                  foreign_key: "#{dest_model_name.underscore}_id",
+                  key: "#{dest_model_name.underscore}_id",
                   rel_type: :through
               }
             else
               reflections_data[dest_model_name] = {
-                  foreign_key: get_foreign_key(reflection_name, model),
+                  key: get_key(reflection_name, model, reflection_object.macro),
                   rel_type: reflection_object.macro,
                   alias: reflection_object.options[:class_name].present? ? reflection_name : nil,
                   options: reflection_object.options
@@ -57,8 +57,12 @@ module RelGram
     end
 
     private
-    def get_foreign_key(r_name, model)
-      model.reflect_on_association(r_name.to_sym).foreign_key
+    def get_key(r_name, model, rel_type)
+      if rel_type == :belongs_to
+        model.primary_key
+      else
+        model.reflect_on_association(r_name.to_sym).foreign_key
+      end
     end
   end
 end
