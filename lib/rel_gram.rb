@@ -8,7 +8,7 @@ module RelGram
       output_data = ActiveRecord::Base.descendants.each_with_object({tables: {}, rels: {}}) do |model, models_data|
         begin
           columns = model.columns.each_with_object({}) do |column, columns_data|
-            columns_data[column.name] = {type: column.sql_type, null: column.null, default: column.default}
+            columns_data[column.name] = {type: column.sql_type, null: column.null, default: convert_default(column.default)}
           end
           models_data[:tables][model.name] = {
               attributes: columns,
@@ -17,7 +17,13 @@ module RelGram
           }
 
           reflections = model.reflections.each_with_object({}) do |(reflection_name, reflection_object), reflections_data|
-            dest_model_name = (reflection_object.options[:class_name] || reflection_name.to_s).singularize.camelize
+            dest_model_name = (reflection_object.options[:class_name] || reflection_name.to_s)
+            dest_model_name = dest_model_name.singularize.camelize unless reflection_object.macro == :belongs_to
+            as_model = reflection_object.options[:as]
+            if as_model.present?
+              models_data[:tables][as_model.to_s.camelize] ||= []
+              models_data[:tables][as_model.to_s.camelize] << model.name
+            end
             through_model = reflection_object.options[:through]
             if through_model.present?
               reflections_data[through_model.to_s.singularize.camelize] = {
@@ -30,12 +36,14 @@ module RelGram
                   rel_type: :through
               }
             else
-              reflections_data[dest_model_name] = {
-                  key: get_key(reflection_name, model, reflection_object.macro),
-                  rel_type: reflection_object.macro,
-                  alias: reflection_object.options[:class_name].present? ? reflection_name : nil,
-                  options: reflection_object.options
-              }
+              unless models_data[:rels][model.name].try(:[], dest_model_name).try(:[], :rel_type) == :through
+                reflections_data[dest_model_name] = {
+                    key: get_key(reflection_name, model, reflection_object.macro),
+                    rel_type: reflection_object.macro,
+                    alias: reflection_object.options[:class_name].present? ? reflection_name : nil,
+                    options: reflection_object.options
+                }
+              end
             end
           end
           models_data[:rels][model.name] = reflections
@@ -48,7 +56,7 @@ module RelGram
         begin
           output_data[:tables][f.chomp('.rb').split('/')[-1].singularize.camelize][:external] = false
         rescue => e
-          p "Error! Model #{f} not found in models list. #{e.message}"
+          p "Error! Model #{f} not found in models list. #{e.message} #{e.backtrace}"
         end
       end
 
@@ -63,6 +71,10 @@ module RelGram
       else
         model.reflect_on_association(r_name.to_sym).foreign_key
       end
+    end
+
+    def convert_default(default)
+      default.to_s if default
     end
   end
 end
