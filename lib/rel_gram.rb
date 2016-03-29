@@ -40,36 +40,47 @@ module RelGram
       reflections = model.reflections.each_with_object({}) do |(reflection_name, reflection_object), reflections_data|
         dest_model_name = to_name(reflection_object.options[:class_name] || reflection_name)
         dest_model_name = to_name(dest_model_name, true) unless reflection_object.macro == :belongs_to
-        as_model = reflection_object.options[:as]
-        if as_model.present?
-          models_data[:tables][to_name(as_model)] ||= []
-          models_data[:tables][to_name(as_model)] << model.name
-        end
         through_model = reflection_object.options[:through]
         if through_model.present?
           reflections_data[to_name(through_model, true)] = {key: "#{model.name.underscore}_id", rel_type: :through}
           models_data[:rels][dest_model_name] ||= {}
           models_data[:rels][dest_model_name][to_name(through_model, true)] = {
-            key: "#{dest_model_name.underscore}_id",
-            rel_type: :through
+              key: "#{dest_model_name.underscore}_id",
+              rel_type: :through
           }
         else
           unless models_data[:rels][model.name].try(:[], dest_model_name).try(:[], :rel_type) == :through
+            as_model = reflection_object.options[:as]
+            if as_model.present?
+              models_data[:tables][to_name(as_model)] ||= []
+              models_data[:tables][to_name(as_model)] << model.name
+            end
             destination_table, rel_type =
-              if reflection_object.macro == :has_and_belongs_to_many
-                join_table = to_name(reflection_object.join_table)
-                models_data[:tables][join_table] ||= {hidden_table: true}
-                models_data[:tables][join_table][reflection_object.foreign_key] = {}
-                [join_table, :has_many]
-              else
-                [dest_model_name, reflection_object.macro]
-              end
-            reflections_data[destination_table] = {
-              key: get_key(reflection_name, model, reflection_object.macro),
-              rel_type: rel_type,
-              alias: reflection_object.options[:class_name].present? ? reflection_name : nil,
-              options: reflection_object.options
-            }
+                if reflection_object.macro == :has_and_belongs_to_many
+                  join_table = to_name(reflection_object.join_table)
+                  models_data[:tables][join_table] ||= {hidden_table: true}
+                  models_data[:tables][join_table][reflection_object.foreign_key] = {}
+                  [join_table, :has_many]
+                else
+                  [dest_model_name, reflection_object.macro]
+                end
+            self_ref_name = reflection_object.options[:class_name]
+            if self_ref_name.present?
+              reflections_data[destination_table] ||=[]
+              reflections_data[destination_table] << {
+                  key: get_key(reflection_name, model, reflection_object.macro),
+                  rel_type: rel_type,
+                  alias: reflection_object.options[:class_name].present? ? reflection_name : nil,
+                  options: reflection_object.options
+              }
+            else
+              reflections_data[destination_table] = {
+                  key: get_key(reflection_name, model, reflection_object.macro),
+                  rel_type: rel_type,
+                  alias: reflection_object.options[:class_name].present? ? reflection_name : nil,
+                  options: reflection_object.options
+              }
+            end
           end
         end
       end
