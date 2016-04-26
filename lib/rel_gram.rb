@@ -65,7 +65,7 @@ module RelGram
                   [dest_model_name, reflection_object.macro]
                 end
             self_ref_name = reflection_object.options[:class_name]
-            if self_ref_name.present?
+            if self_ref_name.present? && self_ref_name == model.name
               reflections_data[destination_table] ||=[]
               reflections_data[destination_table] << {
                   key: get_key(reflection_name, model, reflection_object.macro),
