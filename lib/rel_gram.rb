@@ -38,7 +38,8 @@ module RelGram
 
     def get_reflections(model, models_data)
       reflections = model.reflections.each_with_object({}) do |(reflection_name, reflection_object), reflections_data|
-        dest_model_name = to_name(reflection_object.options[:class_name] || reflection_name)
+        self_ref_name = reflection_object.options[:class_name].to_s.gsub(/\([^)]*\)/, '')
+        dest_model_name = to_name(self_ref_name || reflection_name)
         dest_model_name = to_name(dest_model_name, true) unless reflection_object.macro == :belongs_to
         through_model = reflection_object.options[:through]
         if through_model.present?
@@ -64,22 +65,22 @@ module RelGram
                 else
                   [dest_model_name, reflection_object.macro]
                 end
-            self_ref_name = reflection_object.options[:class_name]
+
+            p reflection_object.options.dup.merge(class_name: self_ref_name) #reflection_object.options
+            reflection_data_item = {
+                key: get_key(reflection_name, model, reflection_object.macro),
+                rel_type: rel_type,
+                alias: self_ref_name.present? ? reflection_name : nil,
+                options: reflection_object.options.dup.merge(
+                    class_name: self_ref_name,
+                    class: reflection_object.options[:class].to_s.gsub(/\([^)]*\)/, '')
+                )
+            }
             if self_ref_name.present? && self_ref_name == model.name
               reflections_data[destination_table] ||=[]
-              reflections_data[destination_table] << {
-                  key: get_key(reflection_name, model, reflection_object.macro),
-                  rel_type: rel_type,
-                  alias: reflection_object.options[:class_name].present? ? reflection_name : nil,
-                  options: reflection_object.options
-              }
+              reflections_data[destination_table] << reflection_data_item
             else
-              reflections_data[destination_table] = {
-                  key: get_key(reflection_name, model, reflection_object.macro),
-                  rel_type: rel_type,
-                  alias: reflection_object.options[:class_name].present? ? reflection_name : nil,
-                  options: reflection_object.options
-              }
+              reflections_data[destination_table] = reflection_data_item
             end
           end
         end
